@@ -5,5 +5,5 @@ gtFine_trainvaltest/
 vgg16.npy
 
 vgg_log/
-fcn_log/
-fcn_log_copy/
+fcn8_log/
+fcn8_log_copy/
