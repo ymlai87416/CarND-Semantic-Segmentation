@@ -4,7 +4,8 @@ import helper
 import warnings
 from distutils.version import LooseVersion
 import project_tests as tests
-
+import sys
+import numpy as np
 
 # Check TensorFlow Version
 assert LooseVersion(tf.__version__) >= LooseVersion('1.0'), 'Please use TensorFlow version 1.0 or newer.  You are using {}'.format(tf.__version__)
@@ -69,26 +70,36 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     """
 
     fcn_layer7_conv_1x1 = tf.layers.conv2d(vgg_layer7_out, num_classes, 1, padding='SAME',
+                                kernel_initializer=tf.random_normal_initializer(stddev=0.01),
                                 kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3), name='fcn_layer7_conv_1x1')
 
     fcn_layer7_deconv = tf.layers.conv2d_transpose(fcn_layer7_conv_1x1, num_classes, 4, 2, padding='SAME',
+                                        kernel_initializer=tf.random_normal_initializer(stddev=0.01),
                                         kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3), name='fcn_layer7_deconv')
 
-    fcn_layer4_conv_1x1 = tf.layers.conv2d(vgg_layer4_out, num_classes, 1, padding='SAME',
+    vgg_layer4_out_scale = tf.multiply(vgg_layer4_out, 0.01, name='vgg_layer4_out_scale')
+
+    fcn_layer4_conv_1x1 = tf.layers.conv2d(vgg_layer4_out_scale, num_classes, 1, padding='SAME',
+                                           kernel_initializer=tf.random_normal_initializer(stddev=0.01),
                                            kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3), name='fcn_layer4_conv_1x1')
 
     intermediate_1 = tf.add(fcn_layer7_deconv, fcn_layer4_conv_1x1, name='intermediate_1')
 
-    fcn_layer3_conv_1x1 = tf.layers.conv2d(vgg_layer3_out, num_classes, 1, padding='SAME',
+    vgg_layer3_out_scale = tf.multiply(vgg_layer3_out, 0.0001, name='vgg_layer3_out_scale')
+
+    fcn_layer3_conv_1x1 = tf.layers.conv2d(vgg_layer3_out_scale, num_classes, 1, padding='SAME',
+                                           kernel_initializer=tf.random_normal_initializer(stddev=0.01),
                                            kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3), name='fcn_layer3_conv_1x1')
 
     intermediate_1_deconv = tf.layers.conv2d_transpose(intermediate_1, num_classes, 4, 2, padding='SAME',
-                                                   kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3), name='intermediate_1_deconv')
+                                                    kernel_initializer=tf.random_normal_initializer(stddev=0.01),
+                                                    kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3), name='intermediate_1_deconv')
 
     intermediate_2 = tf.add(intermediate_1_deconv, fcn_layer3_conv_1x1, name='intermediate_2')
 
     fcn_output = tf.layers.conv2d_transpose(intermediate_2, num_classes, 16, 8, padding='SAME',
-                                                   kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3), name='fcn_output')
+                                            kernel_initializer=tf.random_normal_initializer(stddev=0.01),
+                                            kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3), name='fcn_output')
 
     return fcn_output
 
@@ -109,23 +120,31 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
     tvars = tf.trainable_variables()
     trainable_vars = [var for var in tvars if not(var.name.startswith('conv'))]
 
-    print("Trainable parameters are: ")
-    for var in trainable_vars:
-        print(var.name + "\n")
+    #print("Trainable parameters are: ")
+    #for var in trainable_vars:
+    #    print(var.name + "\n")
 
     logits = tf.reshape(nn_last_layer, (-1, num_classes))
     correct_label = tf.reshape(correct_label, (-1, num_classes))
-    cross_entropy_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits= logits, labels= correct_label))
+    cross_entropy_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=correct_label))
+
     tf.summary.scalar('cross_entropy_loss', cross_entropy_loss)
+    # add regularization to the loss
+    reg_losses = tf.reduce_sum(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
+    tf.summary.scalar('regularization loss', reg_losses)
+    reg_constant = 0.01
+    loss = cross_entropy_loss + reg_constant * reg_losses
+
+    tf.summary.scalar('total loss', loss)
     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
     training_operation = optimizer.minimize(cross_entropy_loss, var_list=trainable_vars)
 
-    return logits, training_operation, cross_entropy_loss
+    return logits, training_operation, loss
 tests.test_optimize(optimize)
 
 
 def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_loss, input_image,
-             correct_label, keep_prob, learning_rate, writer=None, merged=None):
+             correct_label, keep_prob, learning_rate, writer=None, merged=None, logits=None):
     """
     Train neural network and print out the loss during training.
     :param sess: TF Session
@@ -141,7 +160,6 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     :param writer: Tensorboard writer
     :param merged: Tensorboard merged summary
     """
-    # TODO: Implement function
     sess.run(tf.global_variables_initializer())
 
     keep_prob_value = 0.5
@@ -165,22 +183,151 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
             _, loss = sess.run([train_op, cross_entropy_loss],
                                feed_dict={input_image: image, correct_label: label, keep_prob: keep_prob_value, learning_rate: learning_rate_value})
 
-            if step % 20 == 0 and writer is not None and merged is not None:
-                result = sess.run(merged, feed_dict={input_image: image, correct_label: label, keep_prob: keep_prob_value, learning_rate: learning_rate_value})
-                writer.add_summary(result, step)
+            if step % 5 == 0 and writer is not None and merged is not None:
+                summary = sess.run(merged, feed_dict={input_image: image, correct_label: label, keep_prob: 1, learning_rate: learning_rate_value})
+                writer.add_summary(summary, step)
 
             step = step+1
 
+        if writer is not None and logits is not None:
+            gather_training_stats(sess, i, get_batches_fn, logits, keep_prob, input_image, writer)
+
+
 tests.test_train_nn(train_nn)
 
-def make_train_video():
-    pass
+from moviepy.editor import VideoFileClip
+import scipy.misc
+from PIL import Image
 
-def make_test_video():
-    pass
+def make_real_video(sess, img_shape, logits, keep_prob, input_image, input_path, output_path):
+    def process_frame(img):
+        # Input image is a Numpy array, resize it to match NN input dimensions
+        img_orig_size = (img.shape[0], img.shape[1])
+        img_resized = scipy.misc.imresize(img, img_shape)
 
-def make_real_video():
-    pass
+
+        # Process image with NN
+        img_softmax = sess.run([tf.nn.softmax(logits)],
+                               {keep_prob: 1.0, input_image: [img_resized]})
+
+        # Reshape to 2D image dimensions
+        img_softmax = img_softmax[0][:, 1].reshape(img_shape[0],
+                                                   img_shape[1])
+
+        # Threshold softmax probability to a binary road judgement (>50%)
+        segmentation = (img_softmax > 0.5).reshape(img_shape[0],
+                                                   img_shape[1], 1)
+
+        # Apply road judgement to original image as a mask with alpha = 50%
+        mask = np.dot(segmentation, np.array([[0, 255, 0, 127]]))
+        mask_resize = scipy.misc.imresize(mask, img_orig_size)
+        mask_resize = scipy.misc.toimage(mask_resize, mode="RGBA")
+
+        #Resize the mask to the video original size and apply it on the video
+
+        street_img = Image.fromarray(img)
+        street_img.paste(mask_resize, box=None, mask=mask_resize)
+
+        # Output image as a Numpy array
+        img_out = np.array(street_img)
+        return img_out
+
+    # Process video frames
+    video_outfile = output_path
+    video = VideoFileClip(input_path)
+    video_out = video.fl_image(process_frame)
+    video_out.write_videofile(video_outfile, audio=False)
+
+def mean_iou_score(y_pred, y_true):
+    class_iou_list = []
+    labels = set(y_true).union(set(y_pred))
+    for i in labels:
+        intersect = np.sum(np.logical_and((y_pred == i), (y_true == i)))
+        union = np.sum(np.logical_or((y_pred == i), (y_true == i)))
+        class_iou_list.append(intersect * 1. / union)
+
+    return np.mean(class_iou_list)
+
+def mean_iou(label, prediction):
+    iou_list = []
+    for i in range(len(label)):
+        score = mean_iou_score(label[i], prediction[i])
+        iou_list.append(score)
+
+    return np.mean(iou_list)
+
+def accuracy_score(y_true, y_pred):
+    p = np.sum(y_true == y_pred)
+    return p * 1.0 / len(y_true)
+
+def accuracy(label, prediction):
+    accuracy_list = []
+    for i in range(len(label)):
+        score = accuracy_score(label[i], prediction[i])
+        accuracy_list.append(score)
+
+    return np.mean(accuracy_list)
+
+def f1_score(y_true, y_pred):
+    tp = np.sum(np.logical_and(y_true, y_pred))
+    #tn = np.sum(np.logical_and(y_true == False, y_pred=False))
+    fp = np.sum(np.logical_and(np.logical_not(y_true), y_pred))
+    fn = np.sum(np.logical_and(y_true, np.logical_not(y_pred)))
+
+    if tp + fp != 0:
+        p = (1. * tp) / (tp + fp)
+    else:
+        p = 1
+
+    if tp + fn != 0:
+        r = (1. * tp) / (tp + fn)
+    else:
+        r =0
+
+    if p + r > 0:
+        f = 2 * p * r / (p + r)
+    else:
+        f = 0
+
+    return f
+
+def fscore(label, prediction):
+    fscore_list = []
+    for i in range(len(label)):
+        score = f1_score(label[i], prediction[i])
+        fscore_list.append(score)
+
+    return np.mean(fscore_list)
+
+
+def gather_training_stats(sess, epoch, get_batches_fn, logits, keep_prob, input_image, writer):
+    # run all the batch again
+    batch_size = 32
+    prediction_list = []
+    label_list = []
+    for image, label in get_batches_fn(batch_size):
+        curr_batch_size = len(label)
+        image_shape = (len(label[0]), len(label[0][0]))
+        softmax = sess.run([tf.nn.softmax(logits)],
+                               {keep_prob: 1.0, input_image: image})
+        softmax = np.argmax(np.array(softmax), axis=2)
+        softmax = np.reshape(softmax, (curr_batch_size, image_shape[0] * image_shape[1]))
+        label = np.argmax(np.array(label), axis=3)
+        label = np.reshape(label, (curr_batch_size, image_shape[0] * image_shape[1]))
+
+        for i in range(curr_batch_size):
+            prediction_list.append(softmax[i])
+            label_list.append(label[i])
+
+    mean_iou_r = mean_iou(label_list, prediction_list)
+    accuracy_r = accuracy(label_list, prediction_list)
+    fscore_r = fscore(label_list, prediction_list)
+
+    summary = tf.Summary()
+    summary.value.add(tag="training_accuracy", simple_value=accuracy_r)
+    summary.value.add(tag="training_iou", simple_value=mean_iou_r)
+    summary.value.add(tag="training_fscore", simple_value=fscore_r)
+    writer.add_summary(summary, epoch)
 
 
 def run():
@@ -189,8 +336,15 @@ def run():
     data_dir = './data'
     runs_dir = './runs'
     tests.test_for_kitti_dataset(data_dir)
-    epochs = 1
-    batch_size = 16
+    epochs = 50
+    batch_size = 32
+
+    if len(sys.argv) > 1:
+        mode = sys.argv[1].lower()
+    else:
+        mode = "train"
+
+    print("Current mode: ",  mode)
 
     # Download pretrained vgg model
     helper.maybe_download_pretrained_vgg(data_dir)
@@ -199,7 +353,8 @@ def run():
     # You'll need a GPU with at least 10 teraFLOPS to train on.
     #  https://www.cityscapes-dataset.com/
 
-    LOGDIR = os.path.join('.\\data', 'fcn_log')
+    LOGDIR = os.path.join('.\\data', 'fcn8_log')
+
 
     with tf.Session() as sess:
         # Path to vgg model
@@ -222,15 +377,34 @@ def run():
         merged = tf.summary.merge_all()
         train_writer = tf.summary.FileWriter(LOGDIR, graph=sess.graph)
 
-        # Train NN using the train_nn function
-        train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_loss, input_image,
-             correct_label, keep_prob, learning_rate, train_writer, merged)
+        if mode == "train":
+            # Train NN using the train_nn function
+            train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_loss, input_image,
+                 correct_label, keep_prob, learning_rate, train_writer, merged, logits=logits)
 
-        # Save inference data using helper.save_inference_samples
-        helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image)
+            # Save the model for future use
+            saver = tf.train.Saver()
+            save_path = saver.save(sess, ".\\fcn8\\model.ckpt")
+            print("Model saved in path: %s" % save_path)
 
-        # OPTIONAL: Apply the trained model to a video
+        elif mode == "test":
+            saver = tf.train.Saver()
+            saver.restore(sess, tf.train.latest_checkpoint(".\\fcn8"))
+            # Save inference data using helper.save_inference_samples
+            helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image)
 
+        elif mode == "video":
+            if len(sys.argv) <4:
+                print("main.py video <input video path> <output video path>")
+            else:
+                input = sys.argv[2]
+                output = sys.argv[3]
+
+                saver = tf.train.Saver()
+                saver.restore(sess, tf.train.latest_checkpoint(".\\fcn8"))
+                make_real_video(sess, image_shape, logits, keep_prob, input_image, input, output)
+        else:
+            print("Command unregonized.")
 
 if __name__ == '__main__':
     run()

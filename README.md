@@ -80,7 +80,7 @@ Layers:
 
 ##### Training
 
-* Freeze CNN layers weight, only train the last 2 convolution layers and fcn layers
+* Freeze CNN layers weight, only train the last 2 convolution layers (fc6 and fc7) and fcn layers
 * Train for 50 epoches
 * Learning rate
 * Drop rate
