@@ -163,7 +163,8 @@ To improve the inference speed, the model is further processed.
 In `utils.py`, there are 2 functions for this purpose.
 `freeze_graph()` is a function to freeze the graph, while `optimize_graph()` a function to optimize the graph for inference.
 
-Here is the performance
+Here is the performance:
+
 | Version | Inference speed |
 |:-----|:-----|
 |original version|~1 frame/s|
