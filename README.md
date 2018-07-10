@@ -40,14 +40,12 @@ Download the [Kitti Road dataset](http://www.cvlibs.net/datasets/kitti/eval_road
 
 ### VGG architecture
 
-VGG-16 is proposed to classify an image to a particular category.
+VGG-16[1] is proposed to classify an image to a particular category.
 The following table show VGG-16 internal layers.
 
-Input: 224 x 224 x 3 (RGB)
-
-Output: 1000 classes
-
-Image: [here](https://github.com/ymlai87416/CarND-Semantic-Segmentation/blob/master/images/vgg16_structure.png)
+* Input: 224 x 224 x 3 (RGB)
+* Output: 1000 classes
+* Image: [here](https://github.com/ymlai87416/CarND-Semantic-Segmentation/blob/master/images/vgg16_structure.png)
 
 | VGG-16 Layer            | Output size  |
 |:-----| :-----|
@@ -69,13 +67,18 @@ Image: [here](https://github.com/ymlai87416/CarND-Semantic-Segmentation/blob/mas
 | Soft max | 1000 |
 
 ### FCN-8 architecture
-Input: 576 x 160 x 3 (RGB)
 
-Output: 576 x 160 x 1
+FCN[2] is proposed to solve semantic segmentation. It comes with several favor like FCN-8, FCN-16 and FCN-32.
 
-Class: 0 = road, 1 = non-road
+In this project, FCN-8 is used, it takes the final layer and combines with predictions from 2 intermediate layers (pool3 and pool4),
+and upsamples the combined result 8 times to obtain the result.
 
-Image: [here](https://github.com/ymlai87416/CarND-Semantic-Segmentation/blob/master/images/fcn_structure.png)
+FCN-8 provides more accurate result than FCN-16 and FCN-32 by considering more output from intermediate layers.
+
+* Input: 576 x 160 x 3 (RGB)
+* Output: 576 x 160 x 1
+* Class: 0 = road, 1 = non-road
+* Image: [here](https://github.com/ymlai87416/CarND-Semantic-Segmentation/blob/master/images/fcn_structure.png)
 
 Layers:
 
@@ -98,30 +101,30 @@ Layers:
 | Intermediate_2 <- layer3_out| Conv1-2, stride=2 | 72 x 20 x 2 |
 | Intermediate_2 <- Intermediate_1| Deconv1-2, stride=2 | 72 x 20 x 2 |
 | fcn_output <- Intermediate_2| Deconv16-2, stride = 8 | 576 x 160 x 2 |
-| | Soft max | 576 x 160 x 1 |
+| | Softmax | 576 x 160 x 1 |
 
 ### Training
 
 #### Data
 
-Both kitti road dataset (289 images) and cityscapes dataset (2975 images) is used to train the neural network.
+Both Kitti road dataset (289 images) and cityscapes dataset (2975 images) is used to train the neural network.
 the validation set of cityscapes (500 images) is used as the validation set.
 
-The training data is augmented before send to the neural network for training.
+The training image is augmented before it is used to train the neural network.
 The implementation is the function `augment()` under `helper.py`
 
-The following is applied to the image during augmentation.
+The following operations are applied to the image during augmentation.
 
 | Operation | Function call | Chance  |
 |:-----|:-----| :-----|
-| Change brightness of the image| `apply_brightness_augmentation()` in `helper.py` | 100% |
+| Change the brightness of a image| `apply_brightness_augmentation()` in `helper.py` | 100% |
 | Apply shadow| `apply_random_shadow()` in `helper.py` | 25% |
 | Translation the image along x-y axis| `apply_translation()` in `helper.py` | 50% |
 | Flip the image horizontally| `cv2.flip(img_trans, 1)` in `helper.py`  | 25% |
 
-##### Warning
+##### To setup the project to use cityscapes dataset
 
-Current setup only train on Kitti dataset for grading purpose.
+Current project setup only trains a neural network on Kitti dataset only for grading purpose.
 
 If you want to use also the cityscapes dataset for training, please do the following
 
@@ -143,27 +146,29 @@ get_batches_fn = helper.gen_batch_function_train(os.path.join(data_dir, 'data_ro
 Only FCN layers and the last 2 convolution layers (fc6 and fc7) is trained. Other layers are frozen, and act as the
 feature extractor.
 
-#### Epoch, learning rate and dropout
+#### Epoch, learning rate ,and dropout
 
-This training uses Adam Optimizer and learning rate=`0.0001` ,
+This training uses Adam Optimizer with learning rate=`0.0001`,
 dropout rate=`0.5` for dropout layer after fc6 and fc7, and train the neural network for `50` epochs.
 
-The training is done on Nvidia GeForce GTX 1080Ti, the time for each epoch is around 7 minutes 10 seconds.
+The training is done on Nvidia GeForce GTX 1080Ti, the time for each epoch is around 7 minutes 10 seconds. (using both Kitti and cityscapes)
 
 | Loss | Accuracy |
 |:-----|:-----|
 |![alt text][image13]|![alt text][image14]|
 
+From the accuracy graph, the training accuracy increase with the validation accuracy, which means the network is not overfitting the training
+set at 50th epoch.
 
-### Inference
+### Inference rate
 
-Using the trained model directly result in inference rate of 1 frame / second, which is too slowse the for any practical use.
-To improve the inference speed, the model is further processed.
+Using the trained model directly result in inference rate of 1 frame / second, which is too slow the for any practical use.
+To improve the inference speed, the model is further enhanced.
 
 In `utils.py`, there are 2 functions for this purpose.
 `freeze_graph()` is a function to freeze the graph, while `optimize_graph()` a function to optimize the graph for inference.
 
-Here is the performance:
+Here is the performance comparison for applying freeze graph and optimized graph operation:
 
 | Version | Inference speed |
 |:-----|:-----|
@@ -171,30 +176,32 @@ Here is the performance:
 |frozen graph|~5 frames/s|
 |optimized graph|~5 frames/s|
 
-As there are CPU processing between frames, so the frame rate may be increase if both CPU and GPU process run in parallel.
+As the image is processed by CPU before it is sent to GPU for inference, CPU may become the bottleneck of inference rate.
+The throughput could be improved if both CPU and GPU process run in parallel.
 
 ## Run
 
-As training of neural network is time consuming, hence the training script `main.py` accepts parameters from command line.
+As neural network training is time-consuming, it is better for `main.py` script to work on a task once at a time.
 
-For training, run the following command
+For training the neural network, run the following command
 
 ```
 python main.py train OR python main.py
 ```
 
-For generate test set annotated image, run the following command
+For generate labeled images of test set, run the following command
 ```
 python main.py test kitti OR python main.py test cityscapes
 ```
+The resulting images are stored under `./run`
 
-For generate test set annotated video, run the following command
+For generate labeled video, run the following command
 ```
 python main.py video <input video path> <output video path> <top> <left> <bottom> <right>
 ```
 
-The script accept the input video name and the output path, and also a rectangle representing the Region of interest (ROI), best to have dimension near 576 x 160,
-ROI is drawn as a blue rectangle in the output video.
+The script accepts a file-path of an input video and the output file-path, and also a rectangle representing the Region of interest (ROI).
+It is best to have the dimension of ROI nears to the multiple of 576 x 160, ROI is drawn as a blue rectangle in the output video.
 
 Here is an example.
 ```
@@ -205,13 +212,11 @@ video ./video/challenge_video.mp4 ./video/challenge_video_output.mp4 314 0 670 1
 
 ### Kitti road set result
 
-The trained neural network is used to detect roads in test image set of the Kitti road dataset.
+The trained neural network labels road pixels in the test image set of the Kitti road dataset.
 
-The result is at `runs/1531164309.5460224`
+The resulting images are at `runs/1531164309.5460224`
 
-Here are several images from the result.
-
-| Sample images           |   |
+| Sample images           | Sample images |
 |:-------------:| :-----:|
 | ![alt text][image1] | ![alt text][image2] |
 | ![alt text][image3] | ![alt text][image4] |
@@ -220,11 +225,10 @@ Here are several images from the result.
 
 ### Cityscapes dataset result
 
-The trained neural network is used to detect road in test image set of the cityscapes dataset also.
+Road pixels in the test image set of the cityscapes dataset are labeled and the resulting images are at `runs/1531165575.783992`
 
-The result is at `runs/1531165575.783992`
 
-| Sample images           |   |
+| Sample images           | Sample images  |
 |:-------------:| :-----:|
 | ![alt text][image7] | ![alt text][image8] |
 | ![alt text][image9] | ![alt text][image10] |
@@ -232,14 +236,13 @@ The result is at `runs/1531165575.783992`
 
 ### Video result
 
-I have also used the trained neural network to find the road of the following videos:
+I have also used the trained neural network to label road pixel of the following videos:
 
-The original videos and the results are under the `video` directory.
-
-You can also see the result directly from Youtube.
-* [Project video](https://youtu.be/pY_yx5fJctA)
-* [Challenge video](https://youtu.be/kUz1RNT5TAE)
-* [Harder challenge video](https://youtu.be/kbh5LZV2Obs)
+| Input video           | Output video  |
+|:-------------| :-----|
+| ./video/project_video.mp4 | ./video/project_video_output.mp4 [Youtube](https://youtu.be/pY_yx5fJctA) |
+| ./video/challenge_video.mp4 | ./video/challenge_video_output.mp4 [Youtube](https://youtu.be/kUz1RNT5TAE)|
+| ./video/harder_challenge_video.mp4 | ./video/harder_challenge_video_output.mp4 [Youtube](https://youtu.be/kbh5LZV2Obs)|
 
 
 ## Submission
@@ -250,4 +253,10 @@ You can also see the result directly from Youtube.
  - `main.py`
  - `project_tests.py`
  - Newest inference images from `runs` folder  (**all images from the most recent run**)
+
+
+## Reference
+[1] Simonyan, Karen, and Andrew Zisserman. "Very deep convolutional networks for large-scale image recognition." arXiv preprint arXiv:1409.1556 (2014).
+
+[2] Long, Jonathan, Evan Shelhamer, and Trevor Darrell. "Fully convolutional networks for semantic segmentation." Proceedings of the IEEE conference on computer vision and pattern recognition. 2015.
 

@@ -104,3 +104,4 @@ ENV/
 .idea/
 backup/
 trained_model/
+trained_model_tag_1.0/
