@@ -117,7 +117,7 @@ The following operations are applied to the image during augmentation.
 
 | Operation | Function call | Chance  |
 |:-----|:-----| :-----|
-| Change the brightness of a image| `apply_brightness_augmentation()` in `helper.py` | 100% |
+| Change the brightness of an image| `apply_brightness_augmentation()` in `helper.py` | 100% |
 | Apply shadow| `apply_random_shadow()` in `helper.py` | 25% |
 | Translation the image along x-y axis| `apply_translation()` in `helper.py` | 50% |
 | Flip the image horizontally| `cv2.flip(img_trans, 1)` in `helper.py`  | 25% |
@@ -143,10 +143,10 @@ get_batches_fn = helper.gen_batch_function_train(os.path.join(data_dir, 'data_ro
 
 #### Layers
 
-Only FCN layers and the last 2 convolution layers (fc6 and fc7) is trained. Other layers are frozen, and act as the
+Only FCN layers and the last 2 convolution layers (fc6 and fc7) is trained. Other layers are frozen and act as the
 feature extractor.
 
-#### Epoch, learning rate ,and dropout
+#### Epoch, learning rate, and dropout
 
 This training uses Adam Optimizer with learning rate=`0.0001`,
 dropout rate=`0.5` for dropout layer after fc6 and fc7, and train the neural network for `50` epochs.
@@ -157,8 +157,10 @@ The training is done on Nvidia GeForce GTX 1080Ti, the time for each epoch is ar
 |:-----|:-----|
 |![alt text][image13]|![alt text][image14]|
 
-From the accuracy graph, the training accuracy increase with the validation accuracy, which means the network is not overfitting the training
+From the accuracy graph, the training accuracy increases with the validation accuracy, which means the network is not overfitting the training
 set at 50th epoch.
+
+The baseline of accuracy is 84% (validation), it can be achieved by averaging all labels in the training set. After the training, the accuracy increases by 10% to 94.6%.
 
 ### Inference rate
 
