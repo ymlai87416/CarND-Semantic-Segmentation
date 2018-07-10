@@ -36,11 +36,11 @@ Make sure you have the following is installed:
 ### Dataset
 Download the [Kitti Road dataset](http://www.cvlibs.net/datasets/kitti/eval_road.php) from [here](http://www.cvlibs.net/download.php?file=data_road.zip).  Extract the dataset in the `data` folder.  This will create the folder `data_road` with all the training a test images.
 
-## Implement
+## Implementation
 
 ### VGG architecture
 
-VGG-16[1] is proposed to classify an image to a particular category.
+VGG-16[1] is proposed to classify an image to a category.
 The following table show VGG-16 internal layers.
 
 * Input: 224 x 224 x 3 (RGB)
@@ -70,7 +70,7 @@ The following table show VGG-16 internal layers.
 
 FCN[2] is proposed to solve semantic segmentation. It comes with several favor like FCN-8, FCN-16 and FCN-32.
 
-In this project, FCN-8 is used, it takes the final layer and combines with predictions from 2 intermediate layers (pool3 and pool4),
+In this project, FCN-8 is used. FCN-8 takes the final layer and combines with predictions from 2 intermediate layers (pool3 and pool4),
 and upsamples the combined result 8 times to obtain the result.
 
 FCN-8 provides more accurate result than FCN-16 and FCN-32 by considering more output from intermediate layers.
@@ -205,10 +205,14 @@ It is best to have the dimension of ROI nears to the multiple of 576 x 160, ROI 
 
 Here is an example.
 ```
-video ./video/challenge_video.mp4 ./video/challenge_video_output.mp4 314 0 670 1280
+python main.py video ./video/challenge_video.mp4 ./video/challenge_video_output.mp4 314 0 670 1280
 ```
 
 ## Result
+
+### Model
+
+You can find the trained model under the release page. [link](https://github.com/ymlai87416/CarND-Semantic-Segmentation/releases/tag/1.0)
 
 ### Kitti road set result
 

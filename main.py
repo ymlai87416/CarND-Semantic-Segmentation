@@ -418,7 +418,10 @@ def run():
             utils.optimize_graph(frozen_graph_path, optimize_graph_path, True, 'image_input', 'logits')
 
         elif mode == "test":
-            dataset = sys.argv[2]
+            if len(sys.argv) < 3:
+                dataset = ""
+            else:
+                dataset = sys.argv[2]
 
             gd = tf.GraphDef()
             g = sess.graph

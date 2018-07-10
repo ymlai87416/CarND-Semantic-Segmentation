@@ -71,8 +71,7 @@ def optimize_graph(input, output, frozen_graph, input_names, output_names):
         input_graph_def,
         input_names.split(","),
         output_names.split(","),
-        dtypes.float32.as_datatype_enum,
-        False)
+        dtypes.float32.as_datatype_enum)
 
     if frozen_graph:
         f = gfile.FastGFile(output, "w")
