@@ -1,29 +1,53 @@
 # Semantic Segmentation
-### Introduction
+
+[//]: # (Image References)
+
+[image1]: ./runs/1531164309.5460224/um_000004.png "kitti_sample"
+[image2]: ./runs/1531164309.5460224/um_000060.png "kitti_sample"
+[image3]: ./runs/1531164309.5460224/umm_000010.png "kitti_sample"
+[image4]: ./runs/1531164309.5460224/umm_000059.png "kitti_sample"
+[image5]: ./runs/1531164309.5460224/uu_000009.png "kitti_sample"
+[image6]: ./runs/1531164309.5460224/uu_000095.png "kitti_sample"
+
+[image7]: ./runs/1531165575.783992/berlin_000032_000019_leftImg8bit.png "cityscapes_sample"
+[image8]: ./runs/1531165575.783992/bielefeld_000000_002308_leftImg8bit.png "cityscapes_sample"
+[image9]: ./runs/1531165575.783992/bonn_000045_000019_leftImg8bit.png "cityscapes_sample"
+[image10]: ./runs/1531165575.783992/leverkusen_000048_000019_leftImg8bit.png "cityscapes_sample"
+[image11]: ./runs/1531165575.783992/mainz_000000_004237_leftImg8bit.png "cityscapes_sample"
+[image12]: ./runs/1531165575.783992/munich_000026_000019_leftImg8bit.png "cityscapes_sample"
+
+[image13]: ./writeup/training_loss.png "training loss"
+[image14]: ./writeup/training_vs_validation_accuracy.png "training vs validation"
+
+[image15]: ./writeup/cityscapes_setup.PNG "cityscapes dataset setup"
+
+## Introduction
 In this project, you'll label the pixels of a road in images using a Fully Convolutional Network (FCN).
 
-### Setup
-##### GPU
+## Setup
+### GPU
 `main.py` will check to make sure you are using GPU - if you don't have a GPU on your system, you can use AWS or another cloud computing platform.
-##### Frameworks and Packages
+### Frameworks and Packages
 Make sure you have the following is installed:
  - [Python 3](https://www.python.org/)
  - [TensorFlow](https://www.tensorflow.org/)
  - [NumPy](http://www.numpy.org/)
  - [SciPy](https://www.scipy.org/)
-##### Dataset
+### Dataset
 Download the [Kitti Road dataset](http://www.cvlibs.net/datasets/kitti/eval_road.php) from [here](http://www.cvlibs.net/download.php?file=data_road.zip).  Extract the dataset in the `data` folder.  This will create the folder `data_road` with all the training a test images.
 
-#### Implement
+## Implement
 
-##### VGG architecture
+### VGG architecture
 
-VGG-16 is proposed to classify an image to a particular category. The following table
-show VGG-16 internal layers.
+VGG-16 is proposed to classify an image to a particular category.
+The following table show VGG-16 internal layers.
 
 Input: 224 x 224 x 3 (RGB)
 
 Output: 1000 classes
+
+Image: [here](https://github.com/ymlai87416/CarND-Semantic-Segmentation/blob/master/images/vgg16_structure.png)
 
 | VGG-16 Layer            | Output size  |
 |:-----| :-----|
@@ -44,12 +68,14 @@ Output: 1000 classes
 | FC-1000 | 1000 |
 | Soft max | 1000 |
 
-##### FCN-8 architecture
+### FCN-8 architecture
 Input: 576 x 160 x 3 (RGB)
 
 Output: 576 x 160 x 1
 
 Class: 0 = road, 1 = non-road
+
+Image: [here](https://github.com/ymlai87416/CarND-Semantic-Segmentation/blob/master/images/fcn_structure.png)
 
 Layers:
 
@@ -74,29 +100,148 @@ Layers:
 | fcn_output <- Intermediate_2| Deconv16-2, stride = 8 | 576 x 160 x 2 |
 | | Soft max | 576 x 160 x 1 |
 
-##### Data augmentation
+### Training
 
-* Not yet try any, will be done later
+#### Data
 
-##### Training
+Both kitti road dataset (289 images) and cityscapes dataset (2975 images) is used to train the neural network.
+the validation set of cityscapes (500 images) is used as the validation set.
 
-* Freeze CNN layers weight, only train the last 2 convolution layers (fc6 and fc7) and fcn layers
-* Train for 50 epoches
-* Learning rate
-* Drop rate
+The training data is augmented before send to the neural network for training.
+The implementation is the function `augment()` under `helper.py`
 
-#### Run
-Run the following command to run the project:
+The following is applied to the image during augmentation.
+
+| Operation | Function call | Chance  |
+|:-----|:-----| :-----|
+| Change brightness of the image| `apply_brightness_augmentation()` in `helper.py` | 100% |
+| Apply shadow| `apply_random_shadow()` in `helper.py` | 25% |
+| Translation the image along x-y axis| `apply_translation()` in `helper.py` | 50% |
+| Flip the image horizontally| `cv2.flip(img_trans, 1)` in `helper.py`  | 25% |
+
+##### Warning
+
+Current setup only train on Kitti dataset for grading purpose.
+
+If you want to use also the cityscapes dataset for training, please do the following
+
+* Put the cityscapes data under `./data` like the following:
+
+![alt text][image15]
+
+Download both leftImg8bit and gtFine dataset from [https://www.cityscapes-dataset.com/](https://www.cityscapes-dataset.com/)
+and extract the content to `./data` folder.
+
+* Change the get_batches_fn to use gen_batch_function_train() instead of gen_batch_function()
 ```
-python main.py
+get_batches_fn = helper.gen_batch_function_train(os.path.join(data_dir, 'data_road'), os.path.join(data_dir, 'cityscapes'), image_shape)
+#get_batches_fn = helper.gen_batch_function(os.path.join(data_dir, 'data_road', 'training'), image_shape)
+````
+
+#### Layers
+
+Only FCN layers and the last 2 convolution layers (fc6 and fc7) is trained. Other layers are frozen, and act as the
+feature extractor.
+
+#### Epoch, learning rate and dropout
+
+This training uses Adam Optimizer and learning rate=`0.0001` ,
+dropout rate=`0.5` for dropout layer after fc6 and fc7, and train the neural network for `50` epochs.
+
+The training is done on Nvidia GeForce GTX 1080Ti, the time for each epoch is around 7 minutes 10 seconds.
+
+| Loss | Accuracy |
+|:-----|:-----|
+|![alt text][image13]|![alt text][image14]|
+
+
+### Inference
+
+Using the trained model directly result in inference rate of 1 frame / second, which is too slowse the for any practical use.
+To improve the inference speed, the model is further processed.
+
+In `utils.py`, there are 2 functions for this purpose.
+`freeze_graph()` is a function to freeze the graph, while `optimize_graph()` a function to optimize the graph for inference.
+
+Here is the performance
+| Version | Inference speed |
+|:-----|:-----|
+|original version|~1 frame/s|
+|frozen graph|~5 frames/s|
+|optimized graph|~5 frames/s|
+
+As there are CPU processing between frames, so the frame rate may be increase if both CPU and GPU process run in parallel.
+
+## Run
+
+As training of neural network is time consuming, hence the training script `main.py` accepts parameters from command line.
+
+For training, run the following command
+
 ```
-**Note** If running this in Jupyter Notebook system messages, such as those regarding test status, may appear in the terminal rather than the notebook.
+python main.py train OR python main.py
+```
 
-#### Result
+For generate test set annotated image, run the following command
+```
+python main.py test kitti OR python main.py test cityscapes
+```
 
-Post a link (result) **
+For generate test set annotated video, run the following command
+```
+python main.py video <input video path> <output video path> <top> <left> <bottom> <right>
+```
 
-### Submission
+The script accept the input video name and the output path, and also a rectangle representing the Region of interest (ROI), best to have dimension near 576 x 160,
+ROI is drawn as a blue rectangle in the output video.
+
+Here is an example.
+```
+video ./video/challenge_video.mp4 ./video/challenge_video_output.mp4 314 0 670 1280
+```
+
+## Result
+
+### Kitti road set result
+
+The trained neural network is used to detect roads in test image set of the Kitti road dataset.
+
+The result is at `runs/1531164309.5460224`
+
+Here are several images from the result.
+
+| Sample images           |   |
+|:-------------:| :-----:|
+| ![alt text][image1] | ![alt text][image2] |
+| ![alt text][image3] | ![alt text][image4] |
+| ![alt text][image5] | ![alt text][image6] |
+
+
+### Cityscapes dataset result
+
+The trained neural network is used to detect road in test image set of the cityscapes dataset also.
+
+The result is at `runs/1531165575.783992`
+
+| Sample images           |   |
+|:-------------:| :-----:|
+| ![alt text][image7] | ![alt text][image8] |
+| ![alt text][image9] | ![alt text][image10] |
+| ![alt text][image11] | ![alt text][image12] |
+
+### Video result
+
+I have also used the trained neural network to find the road of the following videos:
+
+The original videos and the results are under the `video` directory.
+
+You can also see the result directly from Youtube.
+* [Project video](https://youtu.be/pY_yx5fJctA)
+* [Challenge video](https://youtu.be/kUz1RNT5TAE)
+* [Harder challenge video](https://youtu.be/kbh5LZV2Obs)
+
+
+## Submission
 1. Ensure you've passed all the unit tests.
 2. Ensure you pass all points on [the rubric](https://review.udacity.com/#!/rubrics/989/view).
 3. Submit the following in a zip file.
@@ -104,11 +249,4 @@ Post a link (result) **
  - `main.py`
  - `project_tests.py`
  - Newest inference images from `runs` folder  (**all images from the most recent run**)
- 
-### Tips
-- The link for the frozen `VGG16` model is hardcoded into `helper.py`.  The model can be found [here](https://s3-us-west-1.amazonaws.com/udacity-selfdrivingcar/vgg.zip)
-- The model is not vanilla `VGG16`, but a fully convolutional version, which already contains the 1x1 convolutions to replace the fully connected layers. Please see this [forum post](https://discussions.udacity.com/t/here-is-some-advice-and-clarifications-about-the-semantic-segmentation-project/403100/8?u=subodh.malgonde) for more information.  A summary of additional points, follow. 
-- The original FCN-8s was trained in stages. The authors later uploaded a version that was trained all at once to their GitHub repo.  The version in the GitHub repo has one important difference: The outputs of pooling layers 3 and 4 are scaled before they are fed into the 1x1 convolutions.  As a result, some students have found that the model learns much better with the scaling layers included. The model may not converge substantially faster, but may reach a higher IoU and accuracy. 
-- When adding l2-regularization, setting a regularizer in the arguments of the `tf.layers` is not enough. Regularization loss terms must be manually added to your loss function. otherwise regularization is not implemented.
-
 

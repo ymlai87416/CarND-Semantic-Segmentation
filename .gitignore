@@ -100,9 +100,7 @@ ENV/
 # mypy
 .mypy_cache/
 
-RUNS/
 
 .idea/
-fcn8/
-fcn8_backup/
-video/
+backup/
+trained_model/
